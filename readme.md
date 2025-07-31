@@ -1,0 +1,1 @@
+Reason for making this is fixing n8n webhooks response HTML entity encoding issues
