@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Video Viewer</title>
+    <style>
+        body,
+        html {
+            margin: 0px;
+            padding: 0px;
+            background: black;
+            max-height: 100dvh;
+            max-width: 100%;
+            height: 100dvh;
+            overflow: hidden;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <video id="video" class="video-js" preload="auto" data-setup="{}" controls autoplay></video>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const videoUrl = params.get('v');
+
+        if (videoUrl) {
+            const videoElement = document.getElementById('video');
+            const decodedUrl = decodeURIComponent(videoUrl);
+            const storageKey = `video-progress-${decodedUrl}`;
+
+            videoElement.src = decodedUrl;
+
+            // Restore progress
+            const savedTime = localStorage.getItem(storageKey);
+            if (savedTime) {
+                videoElement.currentTime = parseFloat(savedTime);
+            }
+
+            // Save progress every 3 seconds
+            videoElement.addEventListener('timeupdate', () => {
+                if (!videoElement.paused && !videoElement.ended) {
+                    localStorage.setItem(storageKey, videoElement.currentTime.toString());
+                }
+            });
+
+            // Optionally remove progress on video end
+            videoElement.addEventListener('ended', () => {
+                localStorage.removeItem(storageKey);
+            });
+        } else {
+            document.body.innerHTML = '<p style="color:white;text-align:center;margin-top:20px;">No video URL found in the "v" parameter.</p>';
+        }
+    </script>
+</body>
+
+</html>
