@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang=&quot;en&quot;>
+
+<head>
+    <meta charset=&quot;UTF-8&quot;>
+    <title>Closing Soon</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #eef2f7;
+            font-family: Arial, sans-serif;
+            margin: 0;
+        }
+
+        h1 {
+            color: #2c3e50;
+            font-size: 2.5rem;
+            margin: 0;
+        }
+
+        p {
+            font-size: 1.2rem;
+            color: #555;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Webhook dispatched</h1>
+    <p id=&quot;timer&quot;>Closing in 3 seconds...</p>
+
+    <script>
+        let secondsLeft = 3;
+        const timerEl = document.getElementById('timer');
+
+        const interval = setInterval(() => {
+            secondsLeft--;
+            if (secondsLeft > 0) {
+                timerEl.textContent = `Closing in ${secondsLeft} seconds...`;
+            } else {
+                clearInterval(interval);
+                window.close();
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
