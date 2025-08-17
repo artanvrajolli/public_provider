@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VTBox</title>
+    <style>
+        body,
+        html {
+            margin: 0px;
+            padding: 0px;
+            background: black;
+            max-height: 100dvh;
+            max-width: 100%;
+            height: 100dvh;
+            overflow: hidden;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+        }
+
+        #status:not(:empty) {
+            color: white;
+            text-align: center;
+            margin-top: 20px;
+            position: absolute;
+            top: 0%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="status"></div>
+    <video id="video" preload="auto" controls autoplay></video>
+</body>
+
+<script type="module">
+
+    let timerStatus = null;
+    let messageStatus = '';
+
+    function updateStatus(message, clear = true) {
+        const statusElement = document.getElementById('status');
+        messageStatus += message + '\n';
+        statusElement.innerHTML = messageStatus.replace(/\n/g, '<br>');
+        clearTimeout(timerStatus);
+        if (clear) {
+            timerStatus = setTimeout(() => {
+                statusElement.innerHTML = '';
+                messageStatus = '';
+            }, 5000);
+        }
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    let web_id = params.get('web_id');
+    const token = params.get('token');
+    const targetUrl = params.get('target_url');
+
+    if (!token) {
+        updateStatus('Missing token parameter.', false);
+        throw new Error('Missing token parameter.');
+    }
+
+    // Simple helper to go through the CORS proxy
+    async function fetchJSON(rawUrl, options = {}) {
+        const proxied = 'https://corsnova.vercel.app/' + encodeURIComponent(rawUrl);
+        const res = await fetch(proxied, options);
+        let data;
+        try { data = await res.json(); } catch { data = null; }
+        return { ok: res.ok, status: res.status, data };
+    }
+
+    async function createWebDownloadIfNeeded() {
+        const { ok, status, data } = await fetchJSON('https://api.torbox.app/v1/api/webdl/createwebdownload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'x-Authorization': 'Bearer ' + token
+            },
+            body: new URLSearchParams({
+                link: decodeURIComponent(targetUrl)
+            }).toString()
+        });
+
+        return data?.data.webdownload_id;
+    }
+
+    async function requestDirectLink(web_id_response) {
+        updateStatus('Requesting direct video link...');
+        let isSucess = false;
+        do {
+            const { data } = await fetchJSON('https://api.torbox.app/v1/api/webdl/requestdl?web_id=' + encodeURIComponent(web_id_response) + '&token=' + encodeURIComponent(token));
+            if (data?.success && data?.data) {
+                isSucess = true;
+                const video = document.getElementById('video');
+                video.src = data.data;
+                await video.play().catch(() => { });
+                updateStatus('Video link fetched & playing.');
+            } else {
+                updateStatus('Waiting for video link to be ready...');
+            }
+            console.log('data:', data);
+            await new Promise(resolve => setTimeout(resolve, 5000));
+        } while (!isSucess);
+    }
+
+    async function cleanup() {
+        if (!web_id) return;
+        updateStatus('Cleaning up web download...');
+        const { data } = await fetchJSON('https://api.torbox.app/v1/api/webdl/controlwebdownload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({
+                webdl_id: web_id,
+                operation: 'delete',
+                all: false
+            })
+        });
+        if (!data?.success) {
+            updateStatus('Failed to remove link from Torbox API.', false);
+        } else {
+            updateStatus('Link removed from Torbox API successfully.');
+        }
+    }
+
+    let web_id_response = await createWebDownloadIfNeeded();
+    console.log('Web download created with web_id:', web_id_response);
+
+    await requestDirectLink(web_id_response);
+
+
+</script>
+
+</html>
