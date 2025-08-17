@@ -58,7 +58,6 @@
     }
 
     const params = new URLSearchParams(window.location.search);
-    let web_id = params.get('web_id');
     const token = params.get('token');
     const targetUrl = params.get('target_url');
 
@@ -108,34 +107,37 @@
             console.log('data:', data);
             await new Promise(resolve => setTimeout(resolve, 5000));
         } while (!isSucess);
+        updateStatus('Video link is ready and playing.');
     }
 
-    async function cleanup() {
-        if (!web_id) return;
-        updateStatus('Cleaning up web download...');
-        const { data } = await fetchJSON('https://api.torbox.app/v1/api/webdl/controlwebdownload', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-Authorization': 'Bearer ' + token
-            },
-            body: JSON.stringify({
-                webdl_id: web_id,
-                operation: 'delete',
-                all: false
-            })
+    async function cleanup(web_id) {
+        const myHeaders = new Headers();
+        myHeaders.append("x-Authorization", "Bearer " + token);
+        myHeaders.append("Content-Type", "application/json");
+
+        const raw = JSON.stringify({
+            "webdl_id": web_id,
+            "operation": "delete",
+            "all": false
         });
-        if (!data?.success) {
-            updateStatus('Failed to remove link from Torbox API.', false);
-        } else {
-            updateStatus('Link removed from Torbox API successfully.');
-        }
+
+        const requestOptions = {
+            method: "POST",
+            headers: myHeaders,
+            body: raw,
+            redirect: "follow"
+        };
+
+        fetch("https://corsnova.vercel.app/"+encodeURIComponent("https://api.torbox.app/v1/api/webdl/controlwebdownload"), requestOptions)
+            .then((response) => response.text())
+            .then((result) => console.log(result))
+            .catch((error) => console.error(error));
     }
 
     let web_id_response = await createWebDownloadIfNeeded();
-    console.log('Web download created with web_id:', web_id_response);
-
     await requestDirectLink(web_id_response);
+    // Perform cleanup after direct link retrieval completes
+    await cleanup(web_id_response);
 
 
 </script>
