@@ -22,39 +22,71 @@
             height: 100%;
         }
 
-        #status:not(:empty) {
+        #loading {
             color: white;
             text-align: center;
-            margin-top: 20px;
             position: absolute;
-            top: 0%;
+            z-index: 2;
+            top: 50%;
             left: 50%;
+            width: min(520px, calc(100% - 48px));
             transform: translate(-50%, -50%);
+            font: 16px/1.4 system-ui, sans-serif;
+        }
+
+        #status {
+            margin-bottom: 12px;
+        }
+
+        #progress-track {
+            height: 12px;
+            overflow: hidden;
+            border: 1px solid #555;
+            border-radius: 999px;
+            background: #222;
+        }
+
+        #progress-bar {
+            width: 0%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #2388ff, #69b4ff);
+            transition: width .4s ease;
+        }
+
+        #progress-label {
+            margin-top: 8px;
+            color: #bbb;
+            font-size: 13px;
         }
     </style>
 </head>
 
 <body>
-    <div id="status"></div>
+    <div id="loading">
+        <div id="status">Starting TorBox download...</div>
+        <div id="progress-track"><div id="progress-bar"></div></div>
+        <div id="progress-label">0%</div>
+    </div>
     <video id="video" preload="auto" controls autoplay></video>
 </body>
 
 <script type="module">
 
-    let timerStatus = null;
-    let messageStatus = '';
-
-    function updateStatus(message, clear = true) {
+    function updateStatus(message) {
         const statusElement = document.getElementById('status');
-        messageStatus += message + '\n';
-        statusElement.innerHTML = messageStatus.replace(/\n/g, '<br>');
-        clearTimeout(timerStatus);
-        if (clear) {
-            timerStatus = setTimeout(() => {
-                statusElement.innerHTML = '';
-                messageStatus = '';
-            }, 5000);
-        }
+        statusElement.textContent = message;
+    }
+
+    function updateProgress(progress = 0, state = 'waiting') {
+        const percentage = Math.max(0, Math.min(100, Number(progress) * 100));
+        document.getElementById('progress-bar').style.width = percentage + '%';
+        document.getElementById('progress-label').textContent =
+            Math.round(percentage * 10) / 10 + '% · ' + state;
+    }
+
+    function hideProgress() {
+        document.getElementById('loading').style.display = 'none';
     }
 
     const params = new URLSearchParams(window.location.search);
@@ -93,23 +125,30 @@
     }
 
     async function requestDirectLink(web_id_response) {
-        updateStatus('Requesting direct video link...');
-        let isSucess = false;
-        do {
+        while (true) {
+            const statusResponse = await fetchJSON(
+                'https://api.torbox.app/v1/api/webdl/mylist?id=' + encodeURIComponent(web_id_response) + '&bypass_cache=true',
+                { headers: { 'x-Authorization': 'Bearer ' + token } }
+            );
+            const webDownload = statusResponse.data?.data;
+            const state = webDownload?.download_state || 'preparing';
+            updateProgress(webDownload?.progress || 0, state);
+            updateStatus(state === 'downloading'
+                ? 'TorBox is downloading the video...'
+                : 'TorBox is preparing the video...');
+
             const { data } = await fetchJSON('https://api.torbox.app/v1/api/webdl/requestdl?web_id=' + encodeURIComponent(web_id_response) + '&token=' + encodeURIComponent(token));
             if (data?.success && data?.data) {
-                isSucess = true;
                 const video = document.getElementById('video');
                 video.src = data.data;
                 await video.play().catch(() => { });
-                updateStatus('Video link fetched & playing.');
-            } else {
-                updateStatus('Waiting for video link to be ready...');
+                updateProgress(1, 'ready');
+                hideProgress();
+                return;
             }
-            console.log('data:', data);
+
             await new Promise(resolve => setTimeout(resolve, 5000));
-        } while (!isSucess);
-        updateStatus('Video link is ready and playing.');
+        }
     }
 
     async function cleanup(web_id) {
