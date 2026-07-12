@@ -60,10 +60,12 @@
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
     const targetUrl = params.get('target_url');
+    const existingWebId = params.get('web_id');
+    const cleanupOwner = params.get('cleanup');
 
-    if (!token) {
-        updateStatus('Missing token parameter.', false);
-        throw new Error('Missing token parameter.');
+    if (!token || (!targetUrl && !existingWebId)) {
+        updateStatus('Missing token or target_url/web_id parameter.', false);
+        throw new Error('Missing token or target_url/web_id parameter.');
     }
 
     // Simple helper to go through the CORS proxy
@@ -128,16 +130,24 @@
             redirect: "follow"
         };
 
-        fetch("https://corsnova.vercel.app/"+encodeURIComponent("https://api.torbox.app/v1/api/webdl/controlwebdownload"), requestOptions)
+        return fetch("https://corsnova.vercel.app/"+encodeURIComponent("https://api.torbox.app/v1/api/webdl/controlwebdownload"), requestOptions)
             .then((response) => response.text())
             .then((result) => console.log(result))
             .catch((error) => console.error(error));
     }
 
-    let web_id_response = await createWebDownloadIfNeeded();
+    let web_id_response = existingWebId || await createWebDownloadIfNeeded();
+    if (!web_id_response) {
+        updateStatus('Failed to create TorBox WebDL.', false);
+        throw new Error('Failed to create TorBox WebDL.');
+    }
+
+    // Standalone use cleans up in the browser. n8n workflows own cleanup when
+    // cleanup=n8n, so closing the player cannot prevent deletion.
+    if (cleanupOwner !== 'n8n') {
+        setTimeout(() => cleanup(web_id_response), 30 * 60 * 1000);
+    }
     await requestDirectLink(web_id_response);
-    // Perform cleanup after direct link retrieval completes
-    await cleanup(web_id_response);
 
 
 </script>
